@@ -154,9 +154,21 @@ export const Controls: React.FC<ControlsProps> = ({
                     type="range" 
                     min="0.1" 
                     max="10.0"
-                    step="0.1"
+                    step={simulationSpeed <= 1 ? 0.1 : 0.5}
                     value={simulationSpeed}
-                    onChange={(e) => setSimulationSpeed(parseFloat(e.target.value))}
+                    onChange={(e) => {
+                      const raw = parseFloat(e.target.value);
+                      let next: number;
+                      if (raw <= 1.0) {
+                        // Snap to 0.1 increments between 0.1 and 1.0
+                        next = Math.min(1.0, Math.max(0.1, Math.round(raw * 10) / 10));
+                      } else {
+                        // Snap upward to 0.5 increments starting from 1.0 up to 10.0: 1.0, 1.5, 2.0, ...
+                        const snapped = 1.0 + Math.ceil((raw - 1.0) / 0.5) * 0.5;
+                        next = Math.min(10.0, Math.max(1.0, parseFloat(snapped.toFixed(1))));
+                      }
+                      setSimulationSpeed(next);
+                    }}
                     className={`accent-cyan-500 h-1 ${isDark ? 'bg-gray-500/30' : 'bg-slate-200'} rounded-lg cursor-pointer`}
                 />
             </div>
