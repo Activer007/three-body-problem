@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, RotateCcw, Activity, AlertTriangle, CheckCircle, Sun, Moon } from 'lucide-react';
+import { Play, Pause, RotateCcw, Activity, AlertTriangle, CheckCircle, Sun, Moon, Focus } from 'lucide-react';
 import { PRESETS } from '../constants';
 import { SimulationStats, PresetName, BodyState } from '../types';
 
@@ -14,6 +14,7 @@ interface ControlsProps {
   bodies: BodyState[];
   theme: 'dark' | 'light';
   setTheme: (t: 'dark' | 'light') => void;
+  onResetCamera: () => void;
 }
 
 export const Controls: React.FC<ControlsProps> = ({
@@ -25,7 +26,8 @@ export const Controls: React.FC<ControlsProps> = ({
   currentPreset,
   stats,
   theme,
-  setTheme
+  setTheme,
+  onResetCamera
 }) => {
   // Dynamic Styles
   const isDark = theme === 'dark';
@@ -141,6 +143,14 @@ export const Controls: React.FC<ControlsProps> = ({
                 title="Restart Scenario"
             >
                 <RotateCcw size={20} />
+            </button>
+
+            <button 
+                onClick={onResetCamera}
+                className={`p-3 rounded-lg transition-colors ${isDark ? 'text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10' : 'text-gray-600 hover:text-cyan-600 hover:bg-cyan-100/50'}`}
+                title="Reset Camera View"
+            >
+                <Focus size={20} />
             </button>
 
             <div className={`h-8 w-px mx-2 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
