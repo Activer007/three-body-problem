@@ -67,10 +67,12 @@ const StarMesh: React.FC<{ radius: number; color: string; theme: 'dark' | 'light
 export const BodyVisual: React.FC<BodyVisualProps> = ({ body, simulationRef, index, traceLength, theme }) => {
   const groupRef = useRef<THREE.Group>(null);
 
-  const baseColor = new THREE.Color(body.color);
-  const lightPlanetColor = baseColor.clone().lerp(new THREE.Color('#0ea5e9'), 0.35);
-  lightPlanetColor.offsetHSL(0, -0.05, 0.08);
-  const planetColor = theme === 'dark' ? body.color : lightPlanetColor.getStyle();
+  // 行星颜色：以蓝色为主（参照地球风格）
+  // 深色主题：白色与蓝色相间混合
+  const darkPlanetColor = body.isStar ? body.color : '#2563eb'; // 深色主题用更亮的蓝色
+  const lightPlanetColor = new THREE.Color('#1e40af').lerp(new THREE.Color('#3b82f6'), 0.4);
+  lightPlanetColor.offsetHSL(0, 0.1, 0.12);
+  const planetColor = theme === 'dark' ? darkPlanetColor : lightPlanetColor.getStyle();
 
   useFrame(() => {
     if (groupRef.current && simulationRef.current[index]) {
@@ -91,15 +93,63 @@ export const BodyVisual: React.FC<BodyVisualProps> = ({ body, simulationRef, ind
         {body.isStar ? (
            <StarMesh radius={body.radius} color={body.color} theme={theme} />
         ) : (
-           /* PLANET VISUALS */
-           <mesh castShadow receiveShadow>
-              <sphereGeometry args={[body.radius, 32, 32]} />
-              <meshStandardMaterial
-                color={planetColor}
-                roughness={0.65}
-                metalness={0.25}
-              />
-           </mesh>
+           /* PLANET VISUALS - 地球风格蓝色行星 */
+           <>
+             {/* 主体球体 */}
+             <mesh castShadow receiveShadow>
+                <sphereGeometry args={[body.radius, 64, 64]} />
+                <meshStandardMaterial
+                  color={planetColor}
+                  roughness={0.6}
+                  metalness={0.15}
+                  emissive={theme === 'dark' ? '#1e3a8a' : '#e0f2fe'}
+                  emissiveIntensity={theme === 'dark' ? 0.5 : 0.1}
+                />
+             </mesh>
+             
+             {/* 白色与蓝色相间的纹理层（仅深色主题） */}
+             {theme === 'dark' && (
+               <mesh scale={[1.02, 1.02, 1.02]}>
+                  <sphereGeometry args={[body.radius, 64, 64]} />
+                  <meshBasicMaterial
+                    color="#ffffff"
+                    transparent
+                    opacity={0.25}
+                    side={THREE.FrontSide}
+                    depthWrite={false}
+                    blending={THREE.AdditiveBlending}
+                  />
+               </mesh>
+             )}
+             
+             {/* 大气光晕效果 */}
+             <mesh scale={[1.15, 1.15, 1.15]}>
+                <sphereGeometry args={[body.radius, 32, 32]} />
+                <meshBasicMaterial
+                  color={theme === 'dark' ? '#60a5fa' : '#7dd3fc'}
+                  transparent
+                  opacity={theme === 'dark' ? 0.2 : 0.1}
+                  side={THREE.BackSide}
+                  depthWrite={false}
+                  blending={THREE.AdditiveBlending}
+                />
+             </mesh>
+             
+             {/* 外层白色光晕（仅深色主题） */}
+             {theme === 'dark' && (
+               <mesh scale={[1.3, 1.3, 1.3]}>
+                  <sphereGeometry args={[body.radius, 32, 32]} />
+                  <meshBasicMaterial
+                    color="#ffffff"
+                    transparent
+                    opacity={0.08}
+                    side={THREE.BackSide}
+                    depthWrite={false}
+                    blending={THREE.AdditiveBlending}
+                  />
+               </mesh>
+             )}
+           </>
         )}
 
         {/* Label */}
@@ -121,7 +171,7 @@ export const BodyVisual: React.FC<BodyVisualProps> = ({ body, simulationRef, ind
       </group>
       
       <Trail
-        width={body.isStar ? 1.6 : 0.5}
+        width={body.isStar ? 1.6 : 0.8}
         length={traceLength}
         color={new THREE.Color(trailColor)}
         attenuation={(t) => t * t}
