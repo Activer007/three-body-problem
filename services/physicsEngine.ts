@@ -27,6 +27,7 @@ export class PhysicsEngine {
   private timeSinceLastEnergySample = 0;
   private statsCache: EnergyStats | null = null;
   private statsCallback?: (stats: EnergyStats) => void;
+  private currentTime = 0;
 
   constructor(initialBodies: BodyState[], config: SimulationConfig) {
     // Deep copy initial state to ensure we have our own mutable instances
@@ -158,6 +159,23 @@ export class PhysicsEngine {
       
       // Calculate accelerations based on temp state, write to outResult.dVel
       this.calculateAccelerations(this.tempBodies, outResult.dVel);
+
+      // Append controller accelerations if provided
+      if (this.config.controller) {
+        // stageTime: current simulation time plus this intermediate offset
+        const stageTime = this.currentTime + dt;
+        const controls = this.config.controller(this.tempBodies, stageTime);
+        if (controls && controls.length === n) {
+          for (let i = 0; i < n; i++) {
+            const u = controls[i];
+            if (u) {
+              outResult.dVel[i].x += u.x || 0;
+              outResult.dVel[i].y += u.y || 0;
+              outResult.dVel[i].z += u.z || 0;
+            }
+          }
+        }
+      }
       
       // Write velocities to outResult.dPos
       for (let i = 0; i < n; i++) {
@@ -215,6 +233,7 @@ export class PhysicsEngine {
           body.velocity.z += (k1v.z + 2*k2v.z + 2*k3v.z + k4v.z) * dtDiv6;
       }
 
+      this.currentTime += dt;
       this.timeSinceLastEnergySample += dt;
       if (this.timeSinceLastEnergySample >= this.energySampleInterval) {
           this.statsCache = this.calculateEnergyStats();

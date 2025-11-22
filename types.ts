@@ -19,6 +19,7 @@ export interface SimulationConfig {
   timeStep: number;
   softening: number; // To prevent infinite forces at collision
   energySampleInterval?: number; // Simulation seconds between energy recomputations
+  controller?: (state: BodyState[], t: number) => Vector3[];
 }
 
 export interface SimulationStats {
