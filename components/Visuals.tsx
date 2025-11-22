@@ -107,8 +107,8 @@ export const BodyVisual: React.FC<BodyVisualProps> = ({ body, simulationRef, ind
         >
             <div className={`select-none text-xs font-mono px-2 rounded backdrop-blur-sm border whitespace-nowrap transition-colors duration-300
                 ${theme === 'dark' 
-                  ? 'text-white/80 bg-black/40 border-white/10' 
-                  : 'text-black/80 bg-white/40 border-black/10 shadow-sm'
+                  ? 'text-white/90 bg-black/50 border-white/10 shadow-sm' 
+                  : 'text-gray-800 bg-white/80 border-gray-300 shadow-md'
                 }`}>
                 {body.name}
             </div>

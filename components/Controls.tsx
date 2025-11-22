@@ -32,11 +32,11 @@ export const Controls: React.FC<ControlsProps> = ({
   
   const containerClass = isDark 
     ? "bg-black/60 backdrop-blur-md border border-white/10 text-gray-200 shadow-2xl shadow-black/50" 
-    : "bg-white/70 backdrop-blur-md border border-white/40 text-gray-800 shadow-xl shadow-gray-400/20";
+    : "bg-gray-50/80 backdrop-blur-md border border-gray-200 text-gray-800 shadow-xl shadow-gray-400/20";
   
-  const labelClass = isDark ? "text-gray-500" : "text-gray-500";
+  const labelClass = isDark ? "text-gray-500" : "text-gray-700";
   const headerTextClass = isDark ? "text-cyan-400" : "text-cyan-600";
-  const subTextClass = isDark ? "text-gray-400" : "text-gray-500";
+  const subTextClass = isDark ? "text-gray-400" : "text-gray-600";
   
   const buttonActive = isDark 
     ? "bg-cyan-900/50 border-cyan-500 text-cyan-100 shadow-[0_0_10px_rgba(6,182,212,0.3)]"
@@ -153,7 +153,7 @@ export const Controls: React.FC<ControlsProps> = ({
                     step="0.1"
                     value={simulationSpeed}
                     onChange={(e) => setSimulationSpeed(parseFloat(e.target.value))}
-                    className="accent-cyan-500 h-1 bg-gray-500/30 rounded-lg appearance-none cursor-pointer"
+                    className={`accent-cyan-500 h-1 ${isDark ? 'bg-gray-500/30' : 'bg-gray-300'} rounded-lg appearance-none cursor-pointer`}
                 />
             </div>
         </div>

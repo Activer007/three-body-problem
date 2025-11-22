@@ -115,10 +115,10 @@ export default function App() {
       return 300;
   };
 
-  const bgColor = theme === 'dark' ? '#050505' : '#e5e7eb';
+  const bgColor = theme === 'dark' ? '#050505' : '#ffffff';
 
   return (
-    <div className={`w-full h-screen relative overflow-hidden transition-colors duration-500 ${theme === 'dark' ? 'bg-black' : 'bg-gray-200'}`}>
+    <div className={`w-full h-screen relative overflow-hidden transition-colors duration-500 ${theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'}`}>
       <Canvas shadows dpr={[1, 2]} gl={{ antialias: true }}>
         <PerspectiveCamera makeDefault position={[0, 0, 40]} fov={45} />
         <color attach="background" args={[bgColor]} />

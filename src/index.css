@@ -15,7 +15,7 @@
 
   body {
     background-color: #000000;
-    color: #ffffff;
+    /* color inherits from app root to respect theme */
     font-family: 'Inter', sans-serif;
   }
 
