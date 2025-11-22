@@ -235,8 +235,9 @@ export class PhysicsEngine {
       // Optimized: Avoid .find and .filter to reduce allocations
       let planet: BodyState | null = null;
       const stars: BodyState[] = [];
+      const distanceCache: number[] = []; // Cache distances to avoid recalculation
 
-      // Single pass to categorize
+      // Single pass to categorize and calculate kinetic energy
       for(let i=0; i<n; i++) {
           const b = this.bodies[i];
           if (b.isStar) {
@@ -250,6 +251,8 @@ export class PhysicsEngine {
       }
 
       // Potential Energy: -G * m1 * m2 / r
+      // Also cache distances for habitable check
+      let cacheIdx = 0;
       for (let i = 0; i < n; i++) {
         for (let j = i + 1; j < n; j++) {
           const b1 = this.bodies[i];
@@ -257,25 +260,38 @@ export class PhysicsEngine {
           const dx = b1.position.x - b2.position.x;
           const dy = b1.position.y - b2.position.y;
           const dz = b1.position.z - b2.position.z;
-          const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+          const distSq = dx*dx + dy*dy + dz*dz;
+          const dist = Math.sqrt(distSq);
+          
+          // Cache the distance
+          distanceCache[cacheIdx++] = dist;
+          
           potential -= (this.config.G * b1.mass * b2.mass) / dist;
         }
       }
 
-      // Simple Habitable Check
+      // Simple Habitable Check - use cached distances
       if (planet) {
         let minStarDist = Infinity;
-        for (const star of stars) {
-          const dx = star.position.x - planet.position.x;
-          const dy = star.position.y - planet.position.y;
-          const dz = star.position.z - planet.position.z;
-          const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-
-          const optimalDist = Math.sqrt(star.mass) * 1.5;
-          if (Math.abs(dist - optimalDist) < optimalDist * 0.3) {
-             habitable = true;
+        cacheIdx = 0;
+        
+        for (let i = 0; i < n; i++) {
+          for (let j = i + 1; j < n; j++) {
+            const b1 = this.bodies[i];
+            const b2 = this.bodies[j];
+            const dist = distanceCache[cacheIdx++];
+            
+            // Check if this pair involves the planet
+            const isPlanetPair = (!b1.isStar && b1 === planet) || (!b2.isStar && b2 === planet);
+            if (!isPlanetPair) continue;
+            
+            const star = b1.isStar ? b1 : b2;
+            const optimalDist = Math.sqrt(star.mass) * 1.5;
+            if (Math.abs(dist - optimalDist) < optimalDist * 0.3) {
+               habitable = true;
+            }
+            if (dist < minStarDist) minStarDist = dist;
           }
-          if (dist < minStarDist) minStarDist = dist;
         }
 
         // If too close, it burns

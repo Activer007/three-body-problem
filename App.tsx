@@ -41,9 +41,9 @@ const SimulationLoop = ({
     // Sync visualization ref with physics state
     bodiesRef.current = [...physicsRef.current.bodies];
 
-    // Update UI stats less frequently (every 10 frames) to save React cycles
+    // Update UI stats less frequently (every 20 frames) to save React cycles
     frameCount.current++;
-    if (frameCount.current % 10 === 0 && physicsRef.current) {
+    if (frameCount.current % 20 === 0 && physicsRef.current) {
         const rawStats = statsCacheRef.current || physicsRef.current.getStats();
         statsCacheRef.current = rawStats;
 
@@ -224,10 +224,10 @@ export default function App() {
   // Calculate trail length based on speed to avoid clutter
   // High speed = shorter trail history
   const getTrailLength = (speed: number) => {
-      if (speed > 8) return 40;
-      if (speed > 5) return 80;
-      if (speed > 2) return 150;
-      return 300;
+      if (speed > 8) return 30;
+      if (speed > 5) return 60;
+      if (speed > 2) return 100;
+      return 200;
   };
 
   // Handle camera reset

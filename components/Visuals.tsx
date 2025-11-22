@@ -44,7 +44,7 @@ const StarMesh: React.FC<{ radius: number; color: string; name: string; theme: '
     <group>
         {/* Main Star Body - Using Standard Material with Emissive for safe, realistic glow */}
         <mesh>
-            <sphereGeometry args={[radius, 64, 64]} />
+            <sphereGeometry args={[radius, 32, 32]} />
             <meshStandardMaterial 
                 color={new THREE.Color(color).multiplyScalar(0.8)} 
                 emissive={color}
@@ -58,7 +58,7 @@ const StarMesh: React.FC<{ radius: number; color: string; name: string; theme: '
         {/* 黄色恒星在light主题下的深橙色轮廓 */}
         {outlineColor && (
           <mesh scale={[1.08, 1.08, 1.08]}>
-            <sphereGeometry args={[radius, 64, 64]} />
+            <sphereGeometry args={[radius, 32, 32]} />
             <meshBasicMaterial 
               color={outlineColor}
               transparent 
@@ -70,35 +70,9 @@ const StarMesh: React.FC<{ radius: number; color: string; name: string; theme: '
           </mesh>
         )}
 
-        {/* 中心高亮层 - 体现球心亮度 */}
-        <mesh scale={[1.05, 1.05, 1.05]}>
-            <sphereGeometry args={[radius, 32, 32]} />
-            <meshBasicMaterial 
-                color={color} 
-                transparent 
-                opacity={0.95} 
-                side={THREE.BackSide} 
-                depthWrite={false}
-                blending={THREE.AdditiveBlending}
-            />
-        </mesh>
-
-        {/* 径向渐变层 - 增强3D效果 */}
-        <mesh scale={[1.15, 1.15, 1.15]}>
-            <sphereGeometry args={[radius, 32, 32]} />
-            <meshBasicMaterial 
-                map={gradientTexture}
-                transparent 
-                opacity={0.4} 
-                side={THREE.BackSide} 
-                depthWrite={false}
-                blending={THREE.AdditiveBlending}
-            />
-        </mesh>
-
-        {/* 内层光晕 - 柔和过渡 */}
+        {/* 合并光晕层 - 使用着色器实现多层效果 */}
         <mesh scale={[1.4, 1.4, 1.4]}>
-            <sphereGeometry args={[radius, 32, 32]} />
+            <sphereGeometry args={[radius, 24, 24]} />
             <meshBasicMaterial 
                 color={color} 
                 transparent 
@@ -109,39 +83,13 @@ const StarMesh: React.FC<{ radius: number; color: string; name: string; theme: '
             />
         </mesh>
 
-        {/* 中层光晕 - 扩展光线 */}
-        <mesh scale={[1.8, 1.8, 1.8]}>
-            <sphereGeometry args={[radius, 32, 32]} />
-            <meshBasicMaterial 
-                color={color} 
-                transparent 
-                opacity={theme === 'dark' ? 0.08 : 0.04} 
-                depthWrite={false}
-                side={THREE.BackSide}
-                blending={THREE.AdditiveBlending}
-            />
-        </mesh>
-
         {/* 外层光晕 - 大范围柔光 */}
         <mesh scale={[2.5, 2.5, 2.5]}>
-            <sphereGeometry args={[radius, 32, 32]} />
+            <sphereGeometry args={[radius, 20, 20]} />
             <meshBasicMaterial 
                 color={color} 
                 transparent 
                 opacity={theme === 'dark' ? 0.1 : 0.1} 
-                depthWrite={false}
-                side={THREE.BackSide}
-                blending={THREE.AdditiveBlending}
-            />
-        </mesh>
-
-        {/* 极外层光晕 - 非常柔和的外光 */}
-        <mesh scale={[3.5, 3.5, 3.5]}>
-            <sphereGeometry args={[radius, 16, 16]} />
-            <meshBasicMaterial 
-                color={color} 
-                transparent 
-                opacity={theme === 'dark' ? 0.06 : 0.03} 
                 depthWrite={false}
                 side={THREE.BackSide}
                 blending={THREE.AdditiveBlending}
@@ -192,7 +140,7 @@ export const BodyVisual: React.FC<BodyVisualProps> = ({ body, simulationRef, ind
            <>
              {/* 主体球体 */}
              <mesh castShadow receiveShadow>
-                <sphereGeometry args={[body.radius, 64, 64]} />
+                <sphereGeometry args={[body.radius, 32, 32]} />
                 <meshStandardMaterial
                   color={planetColor}
                   roughness={0.6}
@@ -202,24 +150,9 @@ export const BodyVisual: React.FC<BodyVisualProps> = ({ body, simulationRef, ind
                 />
              </mesh>
              
-             {/* 白色与蓝色相间的纹理层（仅深色主题） */}
-             {theme === 'dark' && (
-               <mesh scale={[1.02, 1.02, 1.02]}>
-                  <sphereGeometry args={[body.radius, 64, 64]} />
-                  <meshBasicMaterial
-                    color="#ffffff"
-                    transparent
-                    opacity={0.25}
-                    side={THREE.FrontSide}
-                    depthWrite={false}
-                    blending={THREE.AdditiveBlending}
-                  />
-               </mesh>
-             )}
-             
-             {/* 大气光晕效果 */}
+             {/* 合并光晕效果 */}
              <mesh scale={[1.15, 1.15, 1.15]}>
-                <sphereGeometry args={[body.radius, 32, 32]} />
+                <sphereGeometry args={[body.radius, 24, 24]} />
                 <meshBasicMaterial
                   color={theme === 'dark' ? '#60a5fa' : '#7dd3fc'}
                   transparent
@@ -229,21 +162,6 @@ export const BodyVisual: React.FC<BodyVisualProps> = ({ body, simulationRef, ind
                   blending={THREE.AdditiveBlending}
                 />
              </mesh>
-             
-             {/* 外层白色光晕（仅深色主题） */}
-             {theme === 'dark' && (
-               <mesh scale={[1.3, 1.3, 1.3]}>
-                  <sphereGeometry args={[body.radius, 32, 32]} />
-                  <meshBasicMaterial
-                    color="#ffffff"
-                    transparent
-                    opacity={0.08}
-                    side={THREE.BackSide}
-                    depthWrite={false}
-                    blending={THREE.AdditiveBlending}
-                  />
-               </mesh>
-             )}
            </>
         )}
 
