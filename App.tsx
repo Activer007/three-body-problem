@@ -4,9 +4,10 @@ import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import { PhysicsEngine } from './services/physicsEngine';
 import { BodyVisual, StarField } from './components/Visuals';
 import { Controls } from './components/Controls';
-import { DEFAULT_TIME_STEP, G_CONST } from './constants';
+// import { DEFAULT_TIME_STEP, G_CONST } from './constants';
 import { BodyState, SimulationStats, ModeId } from './types';
 import { getModeById } from './modes/registry';
+import { getDefaultGlobalParams, GlobalParams } from './parameters/global';
 
 // Inner component to handle the animation loop within Canvas context
 const SimulationLoop = ({
@@ -15,14 +16,16 @@ const SimulationLoop = ({
   statsCacheRef,
   setStats,
   isRunning,
-  speed
+  speed,
+  baseTimeStep
 }: {
   physicsRef: React.MutableRefObject<PhysicsEngine | null>,
   bodiesRef: React.MutableRefObject<BodyState[]>,
   statsCacheRef: React.MutableRefObject<ReturnType<PhysicsEngine['getStats']> | null>,
   setStats: (s: SimulationStats) => void,
   isRunning: boolean,
-  speed: number
+  speed: number,
+  baseTimeStep: number
 }) => {
   const frameCount = useRef(0);
 
@@ -32,7 +35,7 @@ const SimulationLoop = ({
     // Run multiple physics steps per frame for stability at higher speeds
     // Maximum time per frame to avoid "spiral of death" is usually capped
     const steps = Math.ceil(speed * 2); 
-    const dt = (DEFAULT_TIME_STEP * speed) / steps;
+    const dt = (baseTimeStep * speed) / steps;
 
     for (let i = 0; i < steps; i++) {
       physicsRef.current.step(dt);
@@ -158,6 +161,7 @@ const CameraController = ({
 };
 
 export default function App() {
+  const [globalParams, setGlobalParams] = useState<GlobalParams>(getDefaultGlobalParams());
   const [currentPreset, setCurrentPreset] = useState<ModeId>('Figure8');
   const [isRunning, setIsRunning] = useState(true);
   const [simulationSpeed, setSimulationSpeed] = useState(1.0);
@@ -181,16 +185,16 @@ export default function App() {
   const energyStatsRef = useRef<ReturnType<PhysicsEngine['getStats']> | null>(null);
 
   // Initialize simulation
-  const initSimulation = useCallback((modeId: ModeId) => {
+  const initSimulation = (modeId: ModeId) => {
     const mode = getModeById(modeId);
     const initialBodies: BodyState[] = mode.createInitialBodies();
 
     bodiesRef.current = initialBodies;
     const controller = mode.createController ? mode.createController(initialBodies) : undefined;
     physicsRef.current = new PhysicsEngine(initialBodies, {
-      G: G_CONST,
-      timeStep: DEFAULT_TIME_STEP,
-      softening: 0.08,
+      G: globalParams.G,
+      timeStep: globalParams.timeStep,
+      softening: globalParams.softening,
       energySampleInterval: 1,
       controller
     });
@@ -212,12 +216,13 @@ export default function App() {
         energyStatsRef.current = s;
         setStats({ ...s, era: 'Stable', timeElapsed: 0, fps: 60 });
     }
-  }, []);
+  };
 
   // Init on mount
   useEffect(() => {
     initSimulation('Figure8');
-  }, [initSimulation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Calculate trail length based on speed to avoid clutter
   const getTrailLength = (speed: number) => {
@@ -231,6 +236,37 @@ export default function App() {
   const handleResetCamera = useCallback(() => {
     setResetCameraKey(prev => prev + 1);
   }, []);
+
+  // Global params handlers
+  const handleChangeGlobalParams = useCallback((next: GlobalParams) => {
+    setGlobalParams(next);
+  }, []);
+
+  const handleApplyGlobalParams = useCallback(() => {
+    const mode = getModeById(currentPreset);
+    const currentBodies = bodiesRef.current;
+    const controller = mode.createController ? mode.createController(currentBodies) : undefined;
+    physicsRef.current = new PhysicsEngine(currentBodies, {
+      G: globalParams.G,
+      timeStep: globalParams.timeStep,
+      softening: globalParams.softening,
+      energySampleInterval: 1,
+      controller
+    });
+
+    // Force remount visuals (clear trails) and refresh camera target if needed
+    setResetKey(prev => prev + 1);
+
+    if (physicsRef.current) {
+      physicsRef.current.setStatsCallback((s) => {
+        energyStatsRef.current = s;
+      });
+
+      const s = physicsRef.current.getStats();
+      energyStatsRef.current = s;
+      setStats({ ...s, era: 'Stable', timeElapsed: 0, fps: 60 });
+    }
+  }, [currentPreset, globalParams]);
 
   const bgColor = theme === 'dark' ? '#050505' : '#ffffff';
 
@@ -250,6 +286,7 @@ export default function App() {
           setStats={setStats}
           isRunning={isRunning}
           speed={simulationSpeed}
+          baseTimeStep={globalParams.timeStep}
         />
 
         <group>
@@ -287,6 +324,9 @@ export default function App() {
         theme={theme}
         setTheme={setTheme}
         onResetCamera={handleResetCamera}
+        globalParams={globalParams}
+        onChangeGlobalParams={handleChangeGlobalParams}
+        onApplyGlobalParams={handleApplyGlobalParams}
       />
     </div>
   );
