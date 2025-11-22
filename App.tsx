@@ -5,7 +5,7 @@ import { PhysicsEngine } from './services/physicsEngine';
 import { BodyVisual, StarField } from './components/Visuals';
 import { Controls } from './components/Controls';
 // import { DEFAULT_TIME_STEP, G_CONST } from './constants';
-import { BodyState, SimulationStats, ModeId } from './types';
+import { BodyState, SimulationStats, ModeId, ParameterMeta } from './types';
 import { getModeById } from './modes/registry';
 import { getDefaultGlobalParams, GlobalParams } from './parameters/global';
 
@@ -163,6 +163,8 @@ const CameraController = ({
 export default function App() {
   const [globalParams, setGlobalParams] = useState<GlobalParams>(getDefaultGlobalParams());
   const [currentPreset, setCurrentPreset] = useState<ModeId>('Figure8');
+  const [modeParameterSchema, setModeParameterSchema] = useState<ParameterMeta[]>([]);
+  const [modeParams, setModeParams] = useState<Record<string, any>>({});
   const [isRunning, setIsRunning] = useState(true);
   const [simulationSpeed, setSimulationSpeed] = useState(1.0);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -184,13 +186,24 @@ export default function App() {
   const physicsRef = useRef<PhysicsEngine | null>(null);
   const energyStatsRef = useRef<ReturnType<PhysicsEngine['getStats']> | null>(null);
 
+  function defaultsFromSchema(schema: ParameterMeta[]): Record<string, any> {
+    const obj: Record<string, any> = {};
+    for (const m of schema) obj[m.key] = m.default;
+    return obj;
+  }
+
   // Initialize simulation
   const initSimulation = (modeId: ModeId) => {
     const mode = getModeById(modeId);
-    const initialBodies: BodyState[] = mode.createInitialBodies();
+    const schema = mode.parameters || [];
+    setModeParameterSchema(schema);
+    const params = defaultsFromSchema(schema);
+    setModeParams(params);
+
+    const initialBodies: BodyState[] = mode.createInitialBodies(undefined, params);
 
     bodiesRef.current = initialBodies;
-    const controller = mode.createController ? mode.createController(initialBodies) : undefined;
+    const controller = mode.createController ? mode.createController(initialBodies, params) : undefined;
     physicsRef.current = new PhysicsEngine(initialBodies, {
       G: globalParams.G,
       timeStep: globalParams.timeStep,
@@ -245,7 +258,7 @@ export default function App() {
   const handleApplyGlobalParams = useCallback(() => {
     const mode = getModeById(currentPreset);
     const currentBodies = bodiesRef.current;
-    const controller = mode.createController ? mode.createController(currentBodies) : undefined;
+    const controller = mode.createController ? mode.createController(currentBodies, modeParams) : undefined;
     physicsRef.current = new PhysicsEngine(currentBodies, {
       G: globalParams.G,
       timeStep: globalParams.timeStep,
@@ -266,7 +279,21 @@ export default function App() {
       energyStatsRef.current = s;
       setStats({ ...s, era: 'Stable', timeElapsed: 0, fps: 60 });
     }
-  }, [currentPreset, globalParams]);
+  }, [currentPreset, globalParams, modeParams]);
+
+  // Mode params handlers
+  const handleChangeModeParams = useCallback((next: Record<string, any>) => {
+    setModeParams(next);
+  }, []);
+
+  const handleApplyModeParams = useCallback(() => {
+    const mode = getModeById(currentPreset);
+    if (!physicsRef.current) return;
+    const currentBodies = bodiesRef.current;
+    const controller = mode.createController ? mode.createController(currentBodies, modeParams) : undefined;
+    // hot-swap controller without restarting physics
+    (physicsRef.current as any).config.controller = controller;
+  }, [currentPreset, modeParams]);
 
   const bgColor = theme === 'dark' ? '#050505' : '#ffffff';
 
@@ -327,6 +354,10 @@ export default function App() {
         globalParams={globalParams}
         onChangeGlobalParams={handleChangeGlobalParams}
         onApplyGlobalParams={handleApplyGlobalParams}
+        modeParameterSchema={modeParameterSchema}
+        modeParams={modeParams}
+        onChangeModeParams={handleChangeModeParams}
+        onApplyModeParams={handleApplyModeParams}
       />
     </div>
   );

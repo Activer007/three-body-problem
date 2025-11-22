@@ -77,6 +77,8 @@ export interface TrajectoryController {
   } | void;
 }
 
+export type ModeParams = Record<string, any>;
+
 export interface Mode {
   id: ModeId;
   label: string;
@@ -84,7 +86,7 @@ export interface Mode {
   // Parameters driving UI; optional for existing presets
   parameters?: ParameterMeta[];
   // Create initial bodies; seed optional
-  createInitialBodies: (seed?: number) => BodyState[];
+  createInitialBodies: (seed?: number, params?: ModeParams) => BodyState[];
   // Optional controller factory to inject control accelerations
-  createController?: (initialBodies: BodyState[]) => SimulationConfig['controller'];
+  createController?: (initialBodies: BodyState[], params?: ModeParams) => SimulationConfig['controller'];
 }

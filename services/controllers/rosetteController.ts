@@ -1,7 +1,25 @@
 import { BodyState } from '../../types';
 
+export type RosetteGains = {
+  k_r: number;
+  k_dr: number;
+  k_t: number;
+  k_dt: number;
+  k_c: number;
+  a_max: number;
+};
+
 // Controller: keeps the Rosette Hexa-Ring approximately circular, equal-angle and co-rotating
-export function makeRosetteController(initialBodies: BodyState[]) {
+export function makeRosetteController(initialBodies: BodyState[], opts: Partial<RosetteGains> = {}) {
+  const gains: RosetteGains = {
+    k_r: opts.k_r ?? 0.08,
+    k_dr: opts.k_dr ?? 0.18,
+    k_t: opts.k_t ?? 0.12,
+    k_dt: opts.k_dt ?? 0.08,
+    k_c: opts.k_c ?? 0.02,
+    a_max: opts.a_max ?? 0.04
+  };
+
   // Identify petal indices by name prefix
   const petalIdx = initialBodies
     .map((b, i) => ({ b, i }))
@@ -33,14 +51,6 @@ export function makeRosetteController(initialBodies: BodyState[]) {
     }
     return mSum > 0 ? sum / mSum : 0;
   })();
-
-  // Gains and thrust cap (tunable)
-  const k_r = 0.08;
-  const k_dr = 0.18;
-  const k_t = 0.12;
-  const k_dt = 0.08;
-  const k_c = 0.02;
-  const a_max = 0.04;
 
   return (state: BodyState[], t: number) => {
     const n = state.length;
@@ -94,16 +104,16 @@ export function makeRosetteController(initialBodies: BodyState[]) {
       const vr = vx * r_hat.x + vy * r_hat.y + vz * r_hat.z;
       const vt = vx * t_hat.x + vy * t_hat.y + vz * t_hat.z;
 
-      const a_r = -k_r * (r - rStar) - k_dr * vr;
-      const a_t = -k_t * (vt - omegaStar * r) - k_dt * vt;
+      const a_r = -gains.k_r * (r - rStar) - gains.k_dr * vr;
+      const a_t = -gains.k_t * (vt - omegaStar * r) - gains.k_dt * vt;
 
-      let ax = a_r * r_hat.x + a_t * t_hat.x - k_c * vx;
-      let ay = a_r * r_hat.y + a_t * t_hat.y - k_c * vy;
-      let az = a_r * r_hat.z + a_t * t_hat.z - k_c * vz;
+      let ax = a_r * r_hat.x + a_t * t_hat.x - gains.k_c * vx;
+      let ay = a_r * r_hat.y + a_t * t_hat.y - gains.k_c * vy;
+      let az = a_r * r_hat.z + a_t * t_hat.z - gains.k_c * vz;
 
       const aN = Math.hypot(ax, ay, az);
-      if (aN > a_max) {
-        const s = a_max / aN;
+      if (aN > gains.a_max) {
+        const s = gains.a_max / aN;
         ax *= s; ay *= s; az *= s;
       }
 
@@ -113,4 +123,3 @@ export function makeRosetteController(initialBodies: BodyState[]) {
     return acc;
   };
 }
-

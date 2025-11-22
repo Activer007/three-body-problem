@@ -20,6 +20,11 @@ interface ControlsProps {
   globalParams: GlobalParams;
   onChangeGlobalParams: (next: GlobalParams) => void;
   onApplyGlobalParams: () => void;
+  // Mode params (schema-driven)
+  modeParameterSchema: ParameterMeta[];
+  modeParams: Record<string, any>;
+  onChangeModeParams: (next: Record<string, any>) => void;
+  onApplyModeParams: () => void;
 }
 
 export const Controls: React.FC<ControlsProps> = ({
@@ -30,12 +35,17 @@ export const Controls: React.FC<ControlsProps> = ({
   resetSimulation,
   currentPreset,
   stats,
+  bodies,
   theme,
   setTheme,
   onResetCamera,
   globalParams,
   onChangeGlobalParams,
-  onApplyGlobalParams
+  onApplyGlobalParams,
+  modeParameterSchema,
+  modeParams,
+  onChangeModeParams,
+  onApplyModeParams
 }) => {
   const isDark = theme === 'dark';
 
@@ -147,6 +157,41 @@ export const Controls: React.FC<ControlsProps> = ({
                   </div>
                 ))}
               </div>
+
+              {/* Mode parameters */}
+              {modeParameterSchema.length > 0 && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-xs font-bold uppercase ${labelClass}`}>Mode Parameters</span>
+                    <button
+                      onClick={onApplyModeParams}
+                      className={`px-2 py-1 text-xs rounded border ${isDark ? 'border-indigo-500 text-indigo-300 hover:bg-indigo-500/10' : 'border-indigo-600 text-indigo-700 hover:bg-indigo-100'}`}
+                      title="Apply mode parameters (hot-swap controller)"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    {modeParameterSchema.map(meta => (
+                      <div key={meta.key} className="flex flex-col gap-1">
+                        <div className={`flex justify-between text-xs font-mono ${subTextClass}`}>
+                          <span>{meta.label}</span>
+                          <span>{(modeParams as any)[meta.key]}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={meta.min ?? 0}
+                          max={meta.max ?? 1}
+                          step={meta.step ?? 0.01}
+                          value={(modeParams as any)[meta.key] ?? meta.default}
+                          onChange={(e) => onChangeModeParams({ ...modeParams, [meta.key]: parseFloat(e.target.value) })}
+                          className={`accent-indigo-500 h-1 ${isDark ? 'bg-gray-500/30' : 'bg-slate-200'} rounded-lg cursor-pointer`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
