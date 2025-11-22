@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import { PhysicsEngine } from './services/physicsEngine';
-import { BodyVisual, StarField } from './components/Visuals';
+import { BodiesManager, StarField } from './components/Visuals';
 import { Controls } from './components/Controls';
 import { PRESETS, DEFAULT_TIME_STEP, G_CONST, generateRandomScenario } from './constants';
 import { BodyState, SimulationStats, PresetName } from './types';
@@ -13,6 +13,7 @@ const SimulationLoop = ({
   bodiesRef,
   statsCacheRef,
   setStats,
+  sceneUpdateRef,
   isRunning,
   speed
 }: {
@@ -20,6 +21,7 @@ const SimulationLoop = ({
   bodiesRef: React.MutableRefObject<BodyState[]>,
   statsCacheRef: React.MutableRefObject<ReturnType<PhysicsEngine['getStats']> | null>,
   setStats: (s: SimulationStats) => void,
+  sceneUpdateRef: React.MutableRefObject<((bodies: BodyState[]) => void) | null>,
   isRunning: boolean,
   speed: number
 }) => {
@@ -39,6 +41,11 @@ const SimulationLoop = ({
 
     // Sync visualization ref with physics state
     bodiesRef.current = [...physicsRef.current.bodies];
+
+    // Update any instanced meshes or scene graphs from a single hook
+    if (sceneUpdateRef.current) {
+      sceneUpdateRef.current(bodiesRef.current);
+    }
 
     // Update UI stats less frequently (every 10 frames) to save React cycles
     frameCount.current++;
@@ -78,6 +85,7 @@ export default function App() {
   const bodiesRef = useRef<BodyState[]>([]);
   const physicsRef = useRef<PhysicsEngine | null>(null);
   const energyStatsRef = useRef<ReturnType<PhysicsEngine['getStats']> | null>(null);
+  const sceneUpdateRef = useRef<((bodies: BodyState[]) => void) | null>(null);
 
   // Initialize simulation
   const initSimulation = useCallback((presetName: PresetName) => {
@@ -142,25 +150,20 @@ export default function App() {
           bodiesRef={bodiesRef}
           statsCacheRef={energyStatsRef}
           setStats={setStats}
+          sceneUpdateRef={sceneUpdateRef}
           isRunning={isRunning}
           speed={simulationSpeed}
         />
 
-        <group>
-           {/* We render based on the initial bodies length. 
-               The individual BodyVisual components pull their realtime position from the ref.
-               This key={currentPreset} forces a full remount of the scene when preset changes. */}
-           {physicsRef.current && physicsRef.current.bodies.map((body, idx) => (
-             <BodyVisual 
-                key={`${currentPreset}-${idx}`} 
-                index={idx}
-                body={body} 
-                simulationRef={bodiesRef} 
-                traceLength={getTrailLength(simulationSpeed)}
-                theme={theme}
-             />
-           ))}
-        </group>
+        {physicsRef.current && (
+          <BodiesManager
+            key={currentPreset}
+            bodiesRef={bodiesRef}
+            traceLength={getTrailLength(simulationSpeed)}
+            theme={theme}
+            onUpdateRef={sceneUpdateRef}
+          />
+        )}
 
         <StarField theme={theme} />
         <OrbitControls 
