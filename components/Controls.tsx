@@ -1,20 +1,30 @@
-import React from 'react';
-import { Play, Pause, RotateCcw, Activity, AlertTriangle, CheckCircle, Sun, Moon, Focus } from 'lucide-react';
-import { PRESETS } from '../constants';
-import { SimulationStats, PresetName, BodyState } from '../types';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Play, Pause, RotateCcw, Activity, AlertTriangle, CheckCircle, Sun, Moon, Focus, Sliders } from 'lucide-react';
+import { SimulationStats, BodyState, ModeId, ParameterMeta } from '../types';
+import { getModeOptions } from '../modes/registry';
+import { GlobalParams, getGlobalParameterSchema } from '../parameters/global';
 
 interface ControlsProps {
   isRunning: boolean;
   setIsRunning: (v: boolean) => void;
   simulationSpeed: number;
   setSimulationSpeed: (v: number) => void;
-  resetSimulation: (preset: PresetName) => void;
-  currentPreset: PresetName;
+  resetSimulation: (modeId: ModeId) => void;
+  currentPreset: ModeId;
   stats: SimulationStats;
   bodies: BodyState[];
   theme: 'dark' | 'light';
   setTheme: (t: 'dark' | 'light') => void;
   onResetCamera: () => void;
+  // Global params (schema-driven)
+  globalParams: GlobalParams;
+  onChangeGlobalParams: (next: GlobalParams) => void;
+  onApplyGlobalParams: () => void;
+  // Mode params (schema-driven)
+  modeParameterSchema: ParameterMeta[];
+  modeParams: Record<string, any>;
+  onChangeModeParams: (next: Record<string, any>) => void;
+  onApplyModeParams: () => void;
 }
 
 export const Controls: React.FC<ControlsProps> = ({
@@ -25,11 +35,18 @@ export const Controls: React.FC<ControlsProps> = ({
   resetSimulation,
   currentPreset,
   stats,
+  bodies,
   theme,
   setTheme,
-  onResetCamera
+  onResetCamera,
+  globalParams,
+  onChangeGlobalParams,
+  onApplyGlobalParams,
+  modeParameterSchema,
+  modeParams,
+  onChangeModeParams,
+  onApplyModeParams
 }) => {
-  // Dynamic Styles
   const isDark = theme === 'dark';
 
   const containerClass = isDark
@@ -52,6 +69,17 @@ export const Controls: React.FC<ControlsProps> = ({
     ? "bg-gray-900/50 border-gray-700 text-gray-400 hover:border-gray-500"
     : "bg-white border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50 shadow-sm";
 
+  const schema = useMemo<ParameterMeta[]>(() => getGlobalParameterSchema(), []);
+  const [advancedOpen, setAdvancedOpen] = useState(true);
+
+  // simple controlled draft uses parent globalParams directly
+  const params = globalParams;
+
+  function setParam(key: keyof GlobalParams, value: number) {
+    const next = { ...params, [key]: value } as GlobalParams;
+    onChangeGlobalParams(next);
+  }
+
   return (
     <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-6">
       {/* Top Header */}
@@ -61,32 +89,111 @@ export const Controls: React.FC<ControlsProps> = ({
             <h1 className={`text-2xl font-bold ${headerTextClass} tracking-wider uppercase flex items-center gap-2`}>
               <Activity className="w-5 h-5" /> Trisolaris
             </h1>
-            <button 
-               onClick={() => setTheme(isDark ? 'light' : 'dark')}
-               className={`p-2 rounded-full transition-colors ${isDark ? 'hover:bg-white/10 text-yellow-400' : 'hover:bg-black/5 text-slate-600'}`}
-               title="Toggle Theme"
-            >
-               {isDark ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
+            <div className="flex items-center gap-1">
+              <button 
+                onClick={() => setAdvancedOpen(v => !v)}
+                className={`p-2 rounded-full transition-colors ${isDark ? 'hover:bg-white/10 text-cyan-300' : 'hover:bg-black/5 text-cyan-700'}`}
+                title="Advanced Parameters"
+              >
+                <Sliders size={18} />
+              </button>
+              <button 
+                 onClick={() => setTheme(isDark ? 'light' : 'dark')}
+                 className={`p-2 rounded-full transition-colors ${isDark ? 'hover:bg-white/10 text-yellow-400' : 'hover:bg-black/5 text-slate-600'}`}
+                 title="Toggle Theme"
+              >
+                 {isDark ? <Sun size={20} /> : <Moon size={20} />}
+              </button>
+            </div>
           </div>
           <p className={`text-xs ${subTextClass} font-mono`}>3-Body Physics Engine</p>
           
           <div className="mt-4 space-y-2">
             <label className={`text-xs font-bold ${labelClass} uppercase`}>Scenario Preset</label>
             <div className="flex flex-wrap gap-2">
-              {PRESETS.map(preset => (
+              {getModeOptions().map(m => (
                 <button
-                  key={preset.name}
-                  onClick={() => resetSimulation(preset.name)}
+                  key={m.id}
+                  onClick={() => resetSimulation(m.id)}
                   className={`px-3 py-1 text-xs rounded border transition-all ${
-                    currentPreset === preset.name ? buttonActive : buttonInactive
+                    currentPreset === m.id ? buttonActive : buttonInactive
                   }`}
                 >
-                  {preset.label}
+                  {m.label}
                 </button>
               ))}
             </div>
           </div>
+
+          {advancedOpen && (
+            <div className="mt-4 pt-3 border-t" style={{ borderColor: isDark ? '#374151' : '#e5e7eb' }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className={`text-xs font-bold uppercase ${labelClass}`}>Global Parameters</span>
+                <button
+                  onClick={onApplyGlobalParams}
+                  className={`px-2 py-1 text-xs rounded border ${isDark ? 'border-cyan-500 text-cyan-300 hover:bg-cyan-500/10' : 'border-cyan-600 text-cyan-700 hover:bg-cyan-100'}`}
+                  title="Apply parameters (restarts physics kernel)"
+                >
+                  Apply
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3">
+                {schema.map(meta => (
+                  <div key={meta.key} className="flex flex-col gap-1">
+                    <div className={`flex justify-between text-xs font-mono ${subTextClass}`}>
+                      <span>{meta.label}</span>
+                      <span>{(params as any)[meta.key]}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={meta.min ?? 0}
+                      max={meta.max ?? 1}
+                      step={meta.step ?? 0.01}
+                      value={(params as any)[meta.key]}
+                      onChange={(e) => setParam(meta.key as keyof GlobalParams, parseFloat(e.target.value))}
+                      className={`accent-cyan-500 h-1 ${isDark ? 'bg-gray-500/30' : 'bg-slate-200'} rounded-lg cursor-pointer`}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Mode parameters */}
+              {modeParameterSchema.length > 0 && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-xs font-bold uppercase ${labelClass}`}>Mode Parameters</span>
+                    <button
+                      onClick={onApplyModeParams}
+                      className={`px-2 py-1 text-xs rounded border ${isDark ? 'border-indigo-500 text-indigo-300 hover:bg-indigo-500/10' : 'border-indigo-600 text-indigo-700 hover:bg-indigo-100'}`}
+                      title="Apply mode parameters (hot-swap controller)"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    {modeParameterSchema.map(meta => (
+                      <div key={meta.key} className="flex flex-col gap-1">
+                        <div className={`flex justify-between text-xs font-mono ${subTextClass}`}>
+                          <span>{meta.label}</span>
+                          <span>{(modeParams as any)[meta.key]}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={meta.min ?? 0}
+                          max={meta.max ?? 1}
+                          step={meta.step ?? 0.01}
+                          value={(modeParams as any)[meta.key] ?? meta.default}
+                          onChange={(e) => onChangeModeParams({ ...modeParams, [meta.key]: parseFloat(e.target.value) })}
+                          className={`accent-indigo-500 h-1 ${isDark ? 'bg-gray-500/30' : 'bg-slate-200'} rounded-lg cursor-pointer`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Stats Panel */}
@@ -170,10 +277,8 @@ export const Controls: React.FC<ControlsProps> = ({
                       const raw = parseFloat(e.target.value);
                       let next: number;
                       if (raw <= 1.0) {
-                        // Snap to 0.1 increments between 0.1 and 1.0
                         next = Math.min(1.0, Math.max(0.1, Math.round(raw * 10) / 10));
                       } else {
-                        // Snap upward to 0.5 increments starting from 1.0 up to 10.0: 1.0, 1.5, 2.0, ...
                         const snapped = 1.0 + Math.ceil((raw - 1.0) / 0.5) * 0.5;
                         next = Math.min(10.0, Math.max(1.0, parseFloat(snapped.toFixed(1))));
                       }

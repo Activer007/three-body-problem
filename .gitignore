@@ -26,4 +26,6 @@ dist-ssr
 .claude/*
 
 .VSCodeCounter/*
+
+.VSCodeCounter/*
 coverage/*
