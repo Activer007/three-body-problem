@@ -1,8 +1,9 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Trail, Html, Sparkles } from '@react-three/drei';
+import { Trail, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { BodyState } from '../types';
+import { generateStarfield, StarLayerData } from '../services/starfieldGenerator';
 
 // ============================================================================
 // 性能优化：Color 对象池，避免每帧创建新对象
@@ -259,16 +260,110 @@ export const BodyVisual: React.FC<BodyVisualProps> = ({ body, simulationRef, ind
   );
 };
 
-export const StarField = ({ theme }: { theme: 'dark' | 'light' }) => {
+const starVertexShader = `
+  uniform float uTime;
+  uniform float uParallax;
+  uniform float uPixelRatio;
+  attribute float size;
+  attribute float twinkleSpeed;
+  attribute float twinklePhase;
+  attribute float twinkleAmplitude;
+  attribute vec3 drift;
+  attribute vec3 color;
+  varying vec3 vColor;
+
+  void main() {
+    vec3 animatedPosition = position + drift * uTime;
+    vec4 mvPosition = modelViewMatrix * vec4(animatedPosition, 1.0);
+    float twinkle = sin(uTime * twinkleSpeed + twinklePhase) * twinkleAmplitude;
+    float distanceFalloff = max(0.1, -mvPosition.z);
+    float pointSize = (size + twinkle) * (1.0 + uParallax) * 30.0;
+    gl_PointSize = max(1.0, pointSize * uPixelRatio / distanceFalloff);
+    gl_Position = projectionMatrix * mvPosition;
+    vColor = color;
+  }
+`;
+
+const starFragmentShader = `
+  uniform float uThemeMix;
+  varying vec3 vColor;
+
+  void main() {
+    float dist = length(gl_PointCoord - vec2(0.5));
+    float alpha = smoothstep(0.5, 0.0, dist);
+    vec3 lightTint = vec3(0.96, 0.98, 1.0);
+    vec3 finalColor = mix(vColor, mix(lightTint, vec3(1.0), 0.35), uThemeMix);
+    float finalAlpha = alpha * mix(0.85, 0.6, uThemeMix);
+    gl_FragColor = vec4(finalColor, finalAlpha);
+  }
+`;
+
+const createLayerGeometry = (layer: StarLayerData) => {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(layer.positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(layer.colors, 3));
+  geometry.setAttribute('size', new THREE.BufferAttribute(layer.sizes, 1));
+  geometry.setAttribute('twinkleSpeed', new THREE.BufferAttribute(layer.twinkleSpeed, 1));
+  geometry.setAttribute('twinklePhase', new THREE.BufferAttribute(layer.twinklePhase, 1));
+  geometry.setAttribute('twinkleAmplitude', new THREE.BufferAttribute(layer.twinkleAmplitude, 1));
+  geometry.setAttribute('drift', new THREE.BufferAttribute(layer.drift, 3));
+  return geometry;
+};
+
+const createLayerUniforms = (layer: StarLayerData) => ({
+  uTime: { value: 0 },
+  uParallax: { value: layer.parallaxFactor },
+  uPixelRatio: { value: typeof window !== 'undefined' ? Math.min(window.devicePixelRatio, 2) : 1 },
+  uThemeMix: { value: 0 }
+});
+
+const StarLayerPoints: React.FC<{ layer: StarLayerData; theme: 'dark' | 'light' }> = ({ layer, theme }) => {
+  const geometry = useMemo(() => createLayerGeometry(layer), [layer]);
+  const uniforms = useMemo(() => createLayerUniforms(layer), [layer]);
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
+
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+    };
+  }, [geometry]);
+
+  useFrame((_, delta) => {
+    if (!materialRef.current) return;
+    materialRef.current.uniforms.uTime.value += delta;
+    const targetMix = theme === 'light' ? 1 : 0;
+    const lerpFactor = Math.min(delta * 5, 1);
+    materialRef.current.uniforms.uThemeMix.value = THREE.MathUtils.lerp(
+      materialRef.current.uniforms.uThemeMix.value,
+      targetMix,
+      lerpFactor
+    );
+  });
+
   return (
-    <Sparkles
-      count={3000}
-      scale={120}
-      size={theme === 'dark' ? 1.5 : 1.3}
-      speed={0}
-      opacity={theme === 'dark' ? 0.4 : 0.28}
-      noise={10}
-      color={theme === 'dark' ? '#ffffff' : '#94a3b8'}
-    />
+    <points geometry={geometry} frustumCulled={false}>
+      <shaderMaterial
+        ref={materialRef}
+        uniforms={uniforms}
+        vertexShader={starVertexShader}
+        fragmentShader={starFragmentShader}
+        transparent
+        depthWrite={false}
+        depthTest
+        blending={THREE.AdditiveBlending}
+      />
+    </points>
   );
-}
+};
+
+export const StarField: React.FC<{ theme: 'dark' | 'light'; seed?: number }> = ({ theme, seed }) => {
+  const starfieldData = useMemo(() => generateStarfield(seed ? { seed } : undefined), [seed]);
+
+  return (
+    <group>
+      {starfieldData.layers.map((layer) => (
+        <StarLayerPoints key={layer.id} layer={layer} theme={theme} />
+      ))}
+    </group>
+  );
+};
