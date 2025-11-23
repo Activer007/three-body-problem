@@ -165,7 +165,6 @@ const createRosetteBodies = (): BodyState[] => {
     );
   }
 
-  rosetteBodies.push(createBody('Core', 0.5, [0, 0, 0], [0, 0, 0], '#ffffff', false));
 
   return rosetteBodies;
 };
@@ -230,8 +229,7 @@ export const PRESETS: Preset[] = [
         [-LAGRANGE_RADIUS / 2, (-Math.sqrt(3) / 2) * LAGRANGE_RADIUS, 0],
         [(Math.sqrt(3) / 2) * LAGRANGE_SPEED, -0.5 * LAGRANGE_SPEED, 0],
         '#ff4444'
-      ),
-      createBody('Probe', 0.001, [LAGRANGE_RADIUS * 0.95, 0.3, 0], [0, LAGRANGE_SPEED, 0], '#ffffff', false)
+      )
     ]
   },
   {

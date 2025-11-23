@@ -4,123 +4,10 @@ import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import { PhysicsEngine } from './services/physicsEngine';
 import { BodyVisual, StarField } from './components/Visuals';
 import { Controls } from './components/Controls';
-import { PRESETS, DEFAULT_TIME_STEP, G_CONST, generateRandomScenario } from './constants';
-import { BodyState, SimulationStats, PresetName } from './types';
-import * as THREE from 'three';
-
-// Controller factory: keeps the Rosette Hexa-Ring approximately circular, equal-angle and co-rotating
-function makeRosetteController(initialBodies: BodyState[]) {
-  // Identify petal indices by name prefix
-  const petalIdx = initialBodies
-    .map((b, i) => ({ b, i }))
-    .filter(x => x.b.name.startsWith('Petal'))
-    .map(x => x.i);
-
-  // Target radius r* as mass-weighted average of initial radii
-  const rStar = (() => {
-    let mSum = 0, mrSum = 0;
-    for (const i of petalIdx) {
-      const b = initialBodies[i];
-      const r = Math.hypot(b.position.x, b.position.y, b.position.z);
-      mrSum += b.mass * r;
-      mSum += b.mass;
-    }
-    return mSum > 0 ? mrSum / mSum : 12; // fallback to preset radius
-  })();
-
-  // Target angular speed ω* from initial tangential velocity / radius (mass-weighted)
-  const omegaStar = (() => {
-    let mSum = 0, sum = 0;
-    for (const i of petalIdx) {
-      const b = initialBodies[i];
-      const r = Math.hypot(b.position.x, b.position.y) || 1e-6;
-      const theta = Math.atan2(b.position.y, b.position.x);
-      const vt = (-b.velocity.x * Math.sin(theta) + b.velocity.y * Math.cos(theta));
-      sum += b.mass * (vt / r);
-      mSum += b.mass;
-    }
-    return mSum > 0 ? sum / mSum : 0;
-  })();
-
-  // Gains and thrust cap (tunable)
-  const k_r = 0.08;
-  const k_dr = 0.18;
-  const k_t = 0.12;
-  const k_dt = 0.08;
-  const k_c = 0.02;
-  const a_max = 0.04;
-
-  return (state: BodyState[], t: number) => {
-    const n = state.length;
-    const acc = Array.from({ length: n }, () => ({ x: 0, y: 0, z: 0 }));
-    if (petalIdx.length === 0) return acc;
-
-    // Mass-weighted centroid and centroid velocity of the ring
-    let mSum = 0, cx = 0, cy = 0, cz = 0, cvx = 0, cvy = 0, cvz = 0;
-    for (const i of petalIdx) {
-      const b = state[i];
-      mSum += b.mass;
-      cx += b.mass * b.position.x;
-      cy += b.mass * b.position.y;
-      cz += b.mass * b.position.z;
-      cvx += b.mass * b.velocity.x;
-      cvy += b.mass * b.velocity.y;
-      cvz += b.mass * b.velocity.z;
-    }
-    if (mSum <= 0) return acc;
-    cx /= mSum; cy /= mSum; cz /= mSum;
-    cvx /= mSum; cvy /= mSum; cvz /= mSum;
-
-    // Estimate current normal (total angular momentum direction)
-    let Lx = 0, Ly = 0, Lz = 0;
-    for (const i of petalIdx) {
-      const b = state[i];
-      const rx = b.position.x - cx, ry = b.position.y - cy, rz = b.position.z - cz;
-      const vx = b.velocity.x - cvx, vy = b.velocity.y - cvy, vz = b.velocity.z - cvz;
-      Lx += (ry * vz - rz * vy) * b.mass;
-      Ly += (rz * vx - rx * vz) * b.mass;
-      Lz += (rx * vy - ry * vx) * b.mass;
-    }
-    const Ln = Math.hypot(Lx, Ly, Lz) || 1;
-    const nx = Lx / Ln, ny = Ly / Ln, nz = Lz / Ln;
-
-    for (const i of petalIdx) {
-      const b = state[i];
-      const rx = b.position.x - cx, ry = b.position.y - cy, rz = b.position.z - cz;
-      const vx = b.velocity.x - cvx, vy = b.velocity.y - cvy, vz = b.velocity.z - cvz;
-
-      const r = Math.hypot(rx, ry, rz) || 1e-9;
-      const r_hat = { x: rx / r, y: ry / r, z: rz / r };
-
-      // t_hat = n × r_hat
-      const tx0 = ny * r_hat.z - nz * r_hat.y;
-      const ty0 = nz * r_hat.x - nx * r_hat.z;
-      const tz0 = nx * r_hat.y - ny * r_hat.x;
-      const t_norm = Math.hypot(tx0, ty0, tz0) || 1e-9;
-      const t_hat = { x: tx0 / t_norm, y: ty0 / t_norm, z: tz0 / t_norm };
-
-      const vr = vx * r_hat.x + vy * r_hat.y + vz * r_hat.z;
-      const vt = vx * t_hat.x + vy * t_hat.y + vz * t_hat.z;
-
-      const a_r = -k_r * (r - rStar) - k_dr * vr;
-      const a_t = -k_t * (vt - omegaStar * r) - k_dt * vt;
-
-      let ax = a_r * r_hat.x + a_t * t_hat.x - k_c * vx;
-      let ay = a_r * r_hat.y + a_t * t_hat.y - k_c * vy;
-      let az = a_r * r_hat.z + a_t * t_hat.z - k_c * vz;
-
-      const aN = Math.hypot(ax, ay, az);
-      if (aN > a_max) {
-        const s = a_max / aN;
-        ax *= s; ay *= s; az *= s;
-      }
-
-      acc[i].x = ax; acc[i].y = ay; acc[i].z = az;
-    }
-
-    return acc;
-  };
-}
+// import { DEFAULT_TIME_STEP, G_CONST } from './constants';
+import { BodyState, SimulationStats, ModeId, ParameterMeta } from './types';
+import { getModeById } from './modes/registry';
+import { getDefaultGlobalParams, GlobalParams } from './parameters/global';
 
 // Inner component to handle the animation loop within Canvas context
 const SimulationLoop = ({
@@ -129,14 +16,16 @@ const SimulationLoop = ({
   statsCacheRef,
   setStats,
   isRunning,
-  speed
+  speed,
+  baseTimeStep
 }: {
   physicsRef: React.MutableRefObject<PhysicsEngine | null>,
   bodiesRef: React.MutableRefObject<BodyState[]>,
   statsCacheRef: React.MutableRefObject<ReturnType<PhysicsEngine['getStats']> | null>,
   setStats: (s: SimulationStats) => void,
   isRunning: boolean,
-  speed: number
+  speed: number,
+  baseTimeStep: number
 }) => {
   const frameCount = useRef(0);
 
@@ -146,7 +35,7 @@ const SimulationLoop = ({
     // Run multiple physics steps per frame for stability at higher speeds
     // Maximum time per frame to avoid "spiral of death" is usually capped
     const steps = Math.ceil(speed * 2); 
-    const dt = (DEFAULT_TIME_STEP * speed) / steps;
+    const dt = (baseTimeStep * speed) / steps;
 
     for (let i = 0; i < steps; i++) {
       physicsRef.current.step(dt);
@@ -272,7 +161,10 @@ const CameraController = ({
 };
 
 export default function App() {
-  const [currentPreset, setCurrentPreset] = useState<PresetName>('Figure8');
+  const [globalParams, setGlobalParams] = useState<GlobalParams>(getDefaultGlobalParams());
+  const [currentPreset, setCurrentPreset] = useState<ModeId>('Figure8');
+  const [modeParameterSchema, setModeParameterSchema] = useState<ParameterMeta[]>([]);
+  const [modeParams, setModeParams] = useState<Record<string, any>>({});
   const [isRunning, setIsRunning] = useState(true);
   const [simulationSpeed, setSimulationSpeed] = useState(1.0);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -294,28 +186,32 @@ export default function App() {
   const physicsRef = useRef<PhysicsEngine | null>(null);
   const energyStatsRef = useRef<ReturnType<PhysicsEngine['getStats']> | null>(null);
 
-  // Initialize simulation
-  const initSimulation = useCallback((presetName: PresetName) => {
-    let initialBodies: BodyState[];
+  function defaultsFromSchema(schema: ParameterMeta[]): Record<string, any> {
+    const obj: Record<string, any> = {};
+    for (const m of schema) obj[m.key] = m.default;
+    return obj;
+  }
 
-    if (presetName === 'Random') {
-        // Dynamically generate new random bodies each time
-        initialBodies = generateRandomScenario();
-    } else {
-        const preset = PRESETS.find(p => p.name === presetName) || PRESETS[0];
-        initialBodies = JSON.parse(JSON.stringify(preset.bodies)); // Deep copy
-    }
-    
+  // Initialize simulation
+  const initSimulation = (modeId: ModeId) => {
+    const mode = getModeById(modeId);
+    const schema = mode.parameters || [];
+    setModeParameterSchema(schema);
+    const params = defaultsFromSchema(schema);
+    setModeParams(params);
+
+    const initialBodies: BodyState[] = mode.createInitialBodies(undefined, params);
+
     bodiesRef.current = initialBodies;
-    const controller = presetName === 'Rosette' ? makeRosetteController(initialBodies) : undefined;
+    const controller = mode.createController ? mode.createController(initialBodies, params) : undefined;
     physicsRef.current = new PhysicsEngine(initialBodies, {
-      G: G_CONST,
-      timeStep: DEFAULT_TIME_STEP,
-      softening: 0.08,
+      G: globalParams.G,
+      timeStep: globalParams.timeStep,
+      softening: globalParams.softening,
       energySampleInterval: 1,
       controller
     });
-    setCurrentPreset(presetName);
+    setCurrentPreset(modeId);
     
     // Increment resetKey to force remount of BodyVisual components and clear trails
     setResetKey(prev => prev + 1);
@@ -333,12 +229,13 @@ export default function App() {
         energyStatsRef.current = s;
         setStats({ ...s, era: 'Stable', timeElapsed: 0, fps: 60 });
     }
-  }, []);
+  };
 
   // Init on mount
   useEffect(() => {
     initSimulation('Figure8');
-  }, [initSimulation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Calculate trail length based on speed to avoid clutter
   const getTrailLength = (speed: number) => {
@@ -352,6 +249,51 @@ export default function App() {
   const handleResetCamera = useCallback(() => {
     setResetCameraKey(prev => prev + 1);
   }, []);
+
+  // Global params handlers
+  const handleChangeGlobalParams = useCallback((next: GlobalParams) => {
+    setGlobalParams(next);
+  }, []);
+
+  const handleApplyGlobalParams = useCallback(() => {
+    const mode = getModeById(currentPreset);
+    const currentBodies = bodiesRef.current;
+    const controller = mode.createController ? mode.createController(currentBodies, modeParams) : undefined;
+    physicsRef.current = new PhysicsEngine(currentBodies, {
+      G: globalParams.G,
+      timeStep: globalParams.timeStep,
+      softening: globalParams.softening,
+      energySampleInterval: 1,
+      controller
+    });
+
+    // Force remount visuals (clear trails) and refresh camera target if needed
+    setResetKey(prev => prev + 1);
+
+    if (physicsRef.current) {
+      physicsRef.current.setStatsCallback((s) => {
+        energyStatsRef.current = s;
+      });
+
+      const s = physicsRef.current.getStats();
+      energyStatsRef.current = s;
+      setStats({ ...s, era: 'Stable', timeElapsed: 0, fps: 60 });
+    }
+  }, [currentPreset, globalParams, modeParams]);
+
+  // Mode params handlers
+  const handleChangeModeParams = useCallback((next: Record<string, any>) => {
+    setModeParams(next);
+  }, []);
+
+  const handleApplyModeParams = useCallback(() => {
+    const mode = getModeById(currentPreset);
+    if (!physicsRef.current) return;
+    const currentBodies = bodiesRef.current;
+    const controller = mode.createController ? mode.createController(currentBodies, modeParams) : undefined;
+    // hot-swap controller without restarting physics
+    (physicsRef.current as any).config.controller = controller;
+  }, [currentPreset, modeParams]);
 
   const bgColor = theme === 'dark' ? '#050505' : '#ffffff';
 
@@ -371,6 +313,7 @@ export default function App() {
           setStats={setStats}
           isRunning={isRunning}
           speed={simulationSpeed}
+          baseTimeStep={globalParams.timeStep}
         />
 
         <group>
@@ -408,6 +351,13 @@ export default function App() {
         theme={theme}
         setTheme={setTheme}
         onResetCamera={handleResetCamera}
+        globalParams={globalParams}
+        onChangeGlobalParams={handleChangeGlobalParams}
+        onApplyGlobalParams={handleApplyGlobalParams}
+        modeParameterSchema={modeParameterSchema}
+        modeParams={modeParams}
+        onChangeModeParams={handleChangeModeParams}
+        onApplyModeParams={handleApplyModeParams}
       />
     </div>
   );
