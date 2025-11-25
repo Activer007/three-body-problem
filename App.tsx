@@ -50,9 +50,11 @@ const SimulationLoop = ({
     const effectiveSpeed = speed * (delta / targetFrameDuration);
     const maxSubSteps = 12;
     const steps = Math.min(maxSubSteps, Math.max(1, Math.ceil(effectiveSpeed * 2)));
-    const dt = (baseTimeStep * speed * (delta / targetFrameDuration)) / steps;
-
     for (let i = 0; i < steps; i++) {
+      const { timeStep } = physicsRef.current.getConfig();
+      const effectiveTimeStep = timeStep ?? baseTimeStep;
+      const dt = (effectiveTimeStep * speed * (delta / targetFrameDuration)) / steps;
+
       physicsRef.current.step(dt);
     }
 
